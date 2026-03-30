@@ -1,11 +1,12 @@
-name: Publish Java SDK (GitHub Packages)
+name: Publish Java SDK (Maven Central)
 
-# Publishes io.bellabaxter:bella-baxter-sdk to GitHub Packages (Maven).
+# Publishes io.bella-baxter:bella-baxter-sdk to Maven Central.
 # Users add to their pom.xml:
-#   <repository>
-#     <id>github</id>
-#     <url>https://maven.pkg.github.com/cosmic-chimps/bella-baxter-java</url>
-#   </repository>
+#   <dependency>
+#     <groupId>io.bella-baxter</groupId>
+#     <artifactId>bella-baxter-sdk</artifactId>
+#     <version>VERSION</version>
+#   </dependency>
 #
 # Triggered by release-sdk.yml creating a tag on this repo.
 
@@ -23,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -78,21 +78,22 @@ jobs:
           echo "✓ VERSION file $FILE_VERSION matches tag $VERSION"
 
       - name: Set pom.xml version from tag
-        working-directory: ${{ env.SDK_FOLDER }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           mvn -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
           echo "Set pom.xml version to $VERSION"
 
-      - name: Build
-        working-directory: ${{ env.SDK_FOLDER }}
-        run: mvn -B package -DskipTests
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.BELLA_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          echo "${{ secrets.BELLA_GPG_FINGERPRINT }}:6:" | gpg --import-ownertrust
 
-      - name: Publish to GitHub Packages
-        working-directory: ${{ env.SDK_FOLDER }}
+      - name: Build, sign and publish to Maven Central
         run: mvn -B deploy -DskipTests
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.BELLA_GPG_PASSPHRASE }}
+          CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -111,4 +112,4 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            text: "${{ needs.publish.result == 'success' && '✅' || needs.publish.result == 'failure' && '❌' || '⚠️' }} *SDK Java (GitHub Packages) publish ${{ github.ref_name }}*: ${{ needs.publish.result }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            text: "${{ needs.publish.result == 'success' && '✅' || needs.publish.result == 'failure' && '❌' || '⚠️' }} *SDK Java (Maven Central) publish ${{ github.ref_name }}*: ${{ needs.publish.result }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
