@@ -37,6 +37,11 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          # Auto-generates ~/.m2/settings.xml with a <server id="central"> entry
+          # pointing to the MAVEN_CENTRAL_* env vars — required by central-publishing-maven-plugin
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
 
       - name: Install kiota
         uses: actions/setup-dotnet@v5
@@ -96,8 +101,8 @@ jobs:
         run: mvn -B deploy -DskipTests
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.BELLA_BAXTER_GPG_PASSPHRASE }}
-          CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
