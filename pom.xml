@@ -129,5 +129,15 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+
+        <!-- central-publishing-maven-plugin must also be active on the parent POM itself
+             (not just pluginManagement) so it intercepts the deploy lifecycle for this module.
+             Without this, maven-deploy-plugin runs directly and fails. -->
+        <plugins>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 </project>
