@@ -1,0 +1,2 @@
+io.bellabaxter.spring.BellaPollingAutoConfiguration
+io.bellabaxter.spring.BellaRefreshScopeConfiguration

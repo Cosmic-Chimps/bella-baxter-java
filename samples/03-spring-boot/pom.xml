@@ -25,10 +25,10 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Bella Baxter SDK -->
+        <!-- Bella Baxter Spring Boot Integration -->
         <dependency>
-            <groupId>io.bellabaxter</groupId>
-            <artifactId>bella-baxter-sdk</artifactId>
+            <groupId>io.bella-baxter</groupId>
+            <artifactId>bella-baxter-spring-boot</artifactId>
             <version>1.0.0</version>
         </dependency>
     </dependencies>

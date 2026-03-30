@@ -34,10 +34,10 @@
             <artifactId>quarkus-resteasy-reactive-jackson</artifactId>
         </dependency>
 
-        <!-- Bella Baxter SDK -->
+        <!-- Bella Baxter Quarkus Integration -->
         <dependency>
-            <groupId>io.bellabaxter</groupId>
-            <artifactId>bella-baxter-sdk</artifactId>
+            <groupId>io.bella-baxter</groupId>
+            <artifactId>bella-baxter-quarkus</artifactId>
             <version>1.0.0</version>
         </dependency>
     </dependencies>

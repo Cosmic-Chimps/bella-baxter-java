@@ -1,55 +1,53 @@
 package io.bellabaxter.samples;
 
-import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.Map;
+import java.util.Optional;
 
+/**
+ * REST resource showing Bella Baxter secrets injected via @ConfigProperty.
+ *
+ * <p>With bella-baxter-quarkus on the classpath and BELLABAXTER_API_KEY set,
+ * {@code BellaConfigSource} registers itself automatically via the Java SPI.
+ * Quarkus then injects Bella secrets via standard MicroProfile Config.
+ *
+ * <p>To enable live-reload on secret changes set:
+ * <pre>
+ *   BELLABAXTER_POLLING_ENABLED=true
+ *   BELLABAXTER_POLLING_INTERVAL_SECONDS=30
+ * </pre>
+ */
 @Path("/")
 @Produces(MediaType.APPLICATION_JSON)
 public class GreetingResource {
 
-    @Inject
-    BellaSecretsStore secrets;
+    // Injected from Bella Baxter secrets via BellaConfigSource (auto-registered SPI)
+    @ConfigProperty(name = "DATABASE_URL", defaultValue = "(not set)")
+    String databaseUrl;
 
-    @Inject
-    BellaAppSecrets appSecrets;
+    @ConfigProperty(name = "EXTERNAL_API_KEY", defaultValue = "(not set)")
+    String externalApiKey;
+
+    @ConfigProperty(name = "PORT", defaultValue = "(not set)")
+    String port;
 
     @GET
     public Map<String, String> index() {
-        String[] keys = {
-            "PORT", "DATABASE_URL", "EXTERNAL_API_KEY", "GLEAP_API_KEY",
-            "ENABLE_FEATURES", "APP_ID", "ConnectionStrings__Postgres", "APP_CONFIG"
-        };
-        Map<String, String> result = new java.util.LinkedHashMap<>();
-        for (String key : keys) {
-            result.put(key, secrets.get(key).orElse("(not set)"));
-        }
-        return result;
+        return Map.of(
+                "DATABASE_URL", databaseUrl,
+                "EXTERNAL_API_KEY", externalApiKey,
+                "PORT", port
+        );
     }
 
     @GET
     @Path("/health")
     public Map<String, Boolean> health() {
         return Map.of("ok", true);
-    }
-
-    /** Typed access via @ApplicationScoped BellaAppSecrets wrapper */
-    @GET
-    @Path("/typed")
-    public Map<String, String> typed() {
-        Map<String, String> result = new java.util.LinkedHashMap<>();
-        result.put("PORT", appSecrets.port());
-        result.put("DATABASE_URL", appSecrets.databaseUrl());
-        result.put("EXTERNAL_API_KEY", appSecrets.externalApiKey());
-        result.put("GLEAP_API_KEY", appSecrets.gleapApiKey());
-        result.put("ENABLE_FEATURES", appSecrets.enableFeatures());
-        result.put("APP_ID", appSecrets.appId());
-        result.put("ConnectionStrings__Postgres", appSecrets.connectionStringsPostgres());
-        result.put("APP_CONFIG", appSecrets.appConfig());
-        return result;
     }
 }

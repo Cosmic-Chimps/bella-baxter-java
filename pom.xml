@@ -5,13 +5,19 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.bella-baxter</groupId>
-    <artifactId>bella-baxter-sdk</artifactId>
+    <artifactId>bella-baxter-parent</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
 
-    <name>Bella Baxter SDK</name>
-    <description>Java SDK for the Bella Baxter secret management platform</description>
+    <name>Bella Baxter SDK Parent</name>
+    <description>Parent POM for Bella Baxter Java SDK modules</description>
     <url>https://github.com/Cosmic-Chimps/bella-baxter-java</url>
+
+    <modules>
+        <module>bella-baxter-sdk</module>
+        <module>bella-baxter-spring-boot</module>
+        <module>bella-baxter-quarkus</module>
+    </modules>
 
     <licenses>
         <license>
@@ -42,128 +48,79 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jackson.version>2.21.1</jackson.version>
         <kiota.version>1.9.2</kiota.version>
+        <spring-boot.version>3.4.1</spring-boot.version>
+        <spring-cloud.version>2024.0.0</spring-cloud.version>
+        <quarkus.version>3.17.7</quarkus.version>
+        <microprofile-config.version>3.1</microprofile-config.version>
     </properties>
 
-    <dependencies>
-        <!-- Kiota abstractions and HTTP adapter -->
-        <dependency>
-            <groupId>com.microsoft.kiota</groupId>
-            <artifactId>microsoft-kiota-abstractions</artifactId>
-            <version>${kiota.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.kiota</groupId>
-            <artifactId>microsoft-kiota-http-okHttp</artifactId>
-            <version>${kiota.version}</version>
-        </dependency>
-        <!-- Kiota serialization -->
-        <dependency>
-            <groupId>com.microsoft.kiota</groupId>
-            <artifactId>microsoft-kiota-serialization-json</artifactId>
-            <version>${kiota.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.kiota</groupId>
-            <artifactId>microsoft-kiota-serialization-text</artifactId>
-            <version>${kiota.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.kiota</groupId>
-            <artifactId>microsoft-kiota-serialization-form</artifactId>
-            <version>${kiota.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.kiota</groupId>
-            <artifactId>microsoft-kiota-serialization-multipart</artifactId>
-            <version>${kiota.version}</version>
-        </dependency>
-        <!-- Jakarta annotations (required by Kiota-generated code) -->
-        <dependency>
-            <groupId>jakarta.annotation</groupId>
-            <artifactId>jakarta.annotation-api</artifactId>
-            <version>3.0.0</version>
-        </dependency>
-        <!-- JSON — kept for E2EE response parsing -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
-        </dependency>
-
-        <!-- Test -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>6.1.0-M1</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
     <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.5</version>
-            </plugin>
-            <!-- Sources jar (required by Maven Central) -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <version>3.3.1</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <goals><goal>jar-no-fork</goal></goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- Javadoc jar (required by Maven Central) -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.11.2</version>
-                <configuration>
-                    <doclint>none</doclint>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>attach-javadocs</id>
-                        <goals><goal>jar</goal></goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- GPG signing (required by Maven Central) -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-gpg-plugin</artifactId>
-                <version>3.2.7</version>
-                <executions>
-                    <execution>
-                        <id>sign-artifacts</id>
-                        <phase>verify</phase>
-                        <goals><goal>sign</goal></goals>
-                        <configuration>
-                            <gpgArguments>
-                                <arg>--pinentry-mode</arg>
-                                <arg>loopback</arg>
-                            </gpgArguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- Maven Central publishing via Sonatype Central Portal -->
-            <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.7.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <publishingServerId>central</publishingServerId>
-                    <autoPublish>true</autoPublish>
-                    <waitUntil>published</waitUntil>
-                </configuration>
-            </plugin>
-        </plugins>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.5</version>
+                </plugin>
+                <!-- Sources jar (required by Maven Central) -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>3.3.1</version>
+                    <executions>
+                        <execution>
+                            <id>attach-sources</id>
+                            <goals><goal>jar-no-fork</goal></goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!-- Javadoc jar (required by Maven Central) -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.11.2</version>
+                    <configuration>
+                        <doclint>none</doclint>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>attach-javadocs</id>
+                            <goals><goal>jar</goal></goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!-- GPG signing (required by Maven Central) -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>3.2.7</version>
+                    <executions>
+                        <execution>
+                            <id>sign-artifacts</id>
+                            <phase>verify</phase>
+                            <goals><goal>sign</goal></goals>
+                            <configuration>
+                                <gpgArguments>
+                                    <arg>--pinentry-mode</arg>
+                                    <arg>loopback</arg>
+                                </gpgArguments>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!-- Maven Central publishing via Sonatype Central Portal -->
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>0.7.0</version>
+                    <extensions>true</extensions>
+                    <configuration>
+                        <publishingServerId>central</publishingServerId>
+                        <autoPublish>true</autoPublish>
+                        <waitUntil>published</waitUntil>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
 </project>
