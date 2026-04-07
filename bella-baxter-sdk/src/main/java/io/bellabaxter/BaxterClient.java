@@ -12,6 +12,7 @@ import okhttp3.Response;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
@@ -60,7 +61,25 @@ public final class BaxterClient implements AutoCloseable {
                         .header("User-Agent", "bella-java-sdk/1.0")
                         .header("X-Bella-Client", "bella-java-sdk")
                         .build()));
-        httpBuilder.addInterceptor(new E2EEncryptionInterceptor());
+
+        // ZKE: prefer explicit privateKeyPem option, then fall back to env var
+        String privateKeyPem = options.getPrivateKeyPem();
+        if (privateKeyPem == null || privateKeyPem.isBlank()) {
+            privateKeyPem = System.getenv("BELLA_BAXTER_PRIVATE_KEY");
+        }
+
+        E2EEncryptionInterceptor e2eeInterceptor;
+        if (privateKeyPem != null && !privateKeyPem.isBlank()) {
+            try {
+                E2EEncryption e2ee = E2EEncryption.fromPkcs8Pem(privateKeyPem);
+                e2eeInterceptor = new E2EEncryptionInterceptor(e2ee, options.getOnWrappedDekReceived());
+            } catch (GeneralSecurityException e) {
+                throw new IllegalArgumentException("Invalid ZKE private key: " + e.getMessage(), e);
+            }
+        } else {
+            e2eeInterceptor = new E2EEncryptionInterceptor();
+        }
+        httpBuilder.addInterceptor(e2eeInterceptor);
         this.okHttp  = httpBuilder.build();
         this.baseUrl = options.getBaxterUrl().replaceAll("/$", "");
 

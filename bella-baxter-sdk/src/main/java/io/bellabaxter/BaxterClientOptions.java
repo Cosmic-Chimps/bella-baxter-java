@@ -1,6 +1,7 @@
 package io.bellabaxter;
 
 import java.time.Duration;
+import java.util.function.BiConsumer;
 
 /**
  * Options for constructing a {@link BaxterClient}.
@@ -22,6 +23,8 @@ public final class BaxterClientOptions {
     private final boolean pollingEnabled;
     private final Duration pollingInterval;
     private final boolean fallbackOnError;
+    private final String privateKeyPem;
+    private final BiConsumer<String, String> onWrappedDekReceived;
 
     private BaxterClientOptions(Builder builder) {
         this.baxterUrl      = (builder.baxterUrl != null ? builder.baxterUrl : DEFAULT_URL).replaceAll("/$", "");
@@ -30,6 +33,8 @@ public final class BaxterClientOptions {
         this.pollingEnabled = builder.pollingEnabled;
         this.pollingInterval = builder.pollingInterval != null ? builder.pollingInterval : Duration.ofSeconds(60);
         this.fallbackOnError = builder.fallbackOnError;
+        this.privateKeyPem         = builder.privateKeyPem;
+        this.onWrappedDekReceived  = builder.onWrappedDekReceived;
     }
 
     public String   getBaxterUrl()      { return baxterUrl; }
@@ -38,6 +43,15 @@ public final class BaxterClientOptions {
     public boolean  isPollingEnabled()  { return pollingEnabled; }
     public Duration getPollingInterval(){ return pollingInterval; }
     public boolean  isFallbackOnError() { return fallbackOnError; }
+        /** PKCS#8 PEM private key for ZKE, or {@code null} if not configured. */
+    public String getPrivateKeyPem() { return privateKeyPem; }
+
+    /**
+     * Listener invoked when the API returns an {@code X-Bella-Wrapped-Dek} header.
+     * Arguments: {@code wrappedDek} (base64), {@code leaseExpires} (ISO-8601, may be null).
+     */
+    public BiConsumer<String, String> getOnWrappedDekReceived() { return onWrappedDekReceived; }
+
 
     private static String requireNonBlank(String value, String name) {
         if (value == null || value.isBlank())
@@ -52,6 +66,8 @@ public final class BaxterClientOptions {
         private boolean pollingEnabled = false;
         private Duration pollingInterval = Duration.ofSeconds(60);
         private boolean fallbackOnError = true;
+        private String privateKeyPem;
+        private BiConsumer<String, String> onWrappedDekReceived;
 
         /** Base URL of the Baxter API, e.g. {@code https://baxter.example.com}. */
         public Builder baxterUrl(String baxterUrl)         { this.baxterUrl = baxterUrl; return this; }
@@ -75,6 +91,27 @@ public final class BaxterClientOptions {
          * Only relevant when pollingEnabled is true.
          */
         public Builder fallbackOnError(boolean fallbackOnError) { this.fallbackOnError = fallbackOnError; return this; }
+
+        /**
+         * PKCS#8 PEM private key for ZKE (Zero-Knowledge Encryption).
+         * Obtain with: {@code bella auth setup}.
+         * Falls back to the {@code BELLA_BAXTER_PRIVATE_KEY} environment variable when not set here.
+         */
+        public Builder privateKeyPem(String privateKeyPem) {
+            this.privateKeyPem = privateKeyPem;
+            return this;
+        }
+
+        /**
+         * Callback invoked whenever the API returns an {@code X-Bella-Wrapped-Dek} response header.
+         *
+         * @param listener receives {@code (wrappedDek, leaseExpires)} — both are base64/ISO-8601
+         *                 strings; {@code leaseExpires} may be {@code null}
+         */
+        public Builder onWrappedDekReceived(BiConsumer<String, String> listener) {
+            this.onWrappedDekReceived = listener;
+            return this;
+        }
 
         public BaxterClientOptions build() { return new BaxterClientOptions(this); }
     }

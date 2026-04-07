@@ -1,3 +1,4 @@
-# Kiota-generated client — regenerate with: kiota update -o src/main/java/io/bellabaxter/generated/
-# or run apps/sdk/generate.sh from repo root
+# Kiota-generated client — regenerate with: apps/sdk/generate.sh from repo root
+bella-baxter-sdk/src/main/java/io/bellabaxter/generated/
+# Old wrong output path (generate.sh previously wrote here) — keep ignored
 src/main/java/io/bellabaxter/generated/
