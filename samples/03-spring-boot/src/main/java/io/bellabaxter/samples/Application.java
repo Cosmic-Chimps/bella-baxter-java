@@ -19,7 +19,7 @@ import java.util.Map;
  * <p>To enable live-reload on secret changes add to application.properties:
  * <pre>
  *   bellabaxter.polling.enabled=true
- *   bellabaxter.polling.interval-seconds=30
+ *   bellabaxter.polling.interval=30s
  * </pre>
  * and add {@code spring-cloud-starter-context} to the POM, then annotate beans
  * with {@code @RefreshScope} to re-create them when secrets change.
