@@ -22,8 +22,22 @@ public class BellaSecretsEnvironmentPostProcessor implements EnvironmentPostProc
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment,
                                        SpringApplication application) {
+        // ── API key mode (bax-... token, HMAC auth) ──────────────────────────
+        // Resolved from: bellabaxter.api-key property → ${BELLA_API_KEY:} in app.properties
         String apiKey = environment.getProperty("bellabaxter.api-key");
-        if (apiKey == null || apiKey.isBlank()) {
+
+        // ── JWT Bearer mode (OAuth2 access token, injected by bella sdk run) ─
+        // Resolved from: bellabaxter.access-token property → ${BELLA_BAXTER_ACCESS_TOKEN:}
+        // or directly from the process environment variable as a fallback.
+        String accessToken = environment.getProperty("bellabaxter.access-token");
+        if (accessToken == null || accessToken.isBlank()) {
+            accessToken = System.getenv("BELLA_BAXTER_ACCESS_TOKEN");
+        }
+
+        boolean hasApiKey = apiKey != null && !apiKey.isBlank();
+        boolean hasJwt    = accessToken != null && !accessToken.isBlank();
+
+        if (!hasApiKey && !hasJwt) {
             return; // nothing to do — auto-configuration will also skip
         }
 
@@ -36,13 +50,33 @@ public class BellaSecretsEnvironmentPostProcessor implements EnvironmentPostProc
             timeoutSeconds = 10;
         }
 
-        BaxterClientOptions options = new BaxterClientOptions.Builder()
+        BaxterClientOptions.Builder builder = new BaxterClientOptions.Builder()
                 .baxterUrl(url)
-                .apiKey(apiKey)
-                .timeoutSeconds(timeoutSeconds)
-                .build();
+                .timeoutSeconds(timeoutSeconds);
 
-        BaxterClient client = new BaxterClient(options);
+        if (hasApiKey) {
+            builder.apiKey(apiKey);
+        } else {
+            // JWT mode — resolve project + environment from properties or env vars
+            String projectSlug = environment.getProperty("bellabaxter.project");
+            if (projectSlug == null || projectSlug.isBlank()) {
+                projectSlug = System.getenv("BELLA_BAXTER_PROJECT");
+            }
+            String environmentSlug = environment.getProperty("bellabaxter.environment");
+            if (environmentSlug == null || environmentSlug.isBlank()) {
+                environmentSlug = System.getenv("BELLA_BAXTER_ENV");
+            }
+            if (projectSlug == null || projectSlug.isBlank()
+                    || environmentSlug == null || environmentSlug.isBlank()) {
+                // Missing project/env — cannot fetch secrets; skip silently
+                return;
+            }
+            builder.bearerToken(accessToken)
+                   .projectSlug(projectSlug)
+                   .environmentSlug(environmentSlug);
+        }
+
+        BaxterClient client = new BaxterClient(builder.build());
         BellaSecretsPropertySource propertySource = new BellaSecretsPropertySource(client);
 
         // addFirst so Bella secrets override application.properties / env vars

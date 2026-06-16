@@ -4,10 +4,13 @@ import io.bellabaxter.BaxterClient;
 import io.bellabaxter.BaxterClientOptions;
 import io.bellabaxter.BellaPollingProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.context.annotation.ConfigurationPhase;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
@@ -50,8 +53,19 @@ import org.springframework.core.env.ConfigurableEnvironment;
  */
 @AutoConfiguration
 @EnableConfigurationProperties(BellaProperties.class)
-@ConditionalOnProperty(prefix = "bellabaxter", name = "api-key")
+@Conditional(BellaPollingAutoConfiguration.BellaConfiguredCondition.class)
 public class BellaPollingAutoConfiguration {
+
+    /** Activates when either an API key or a JWT access token is configured. */
+    static class BellaConfiguredCondition extends AnyNestedCondition {
+        BellaConfiguredCondition() { super(ConfigurationPhase.REGISTER_BEAN); }
+
+        @ConditionalOnProperty(prefix = "bellabaxter", name = "api-key")
+        static class HasApiKey {}
+
+        @ConditionalOnProperty(prefix = "bellabaxter", name = "access-token")
+        static class HasAccessToken {}
+    }
 
     private final BellaProperties props;
     private final ConfigurableEnvironment environment;
@@ -64,15 +78,24 @@ public class BellaPollingAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public BaxterClient baxterClient() {
-        BaxterClientOptions options = new BaxterClientOptions.Builder()
+        BaxterClientOptions.Builder builder = new BaxterClientOptions.Builder()
                 .baxterUrl(props.getUrl())
-                .apiKey(props.getApiKey())
-                .timeoutSeconds(props.getTimeoutSeconds())
-                .pollingEnabled(props.getPolling().isEnabled())
-                .pollingInterval(props.getPolling().getInterval())
-                .fallbackOnError(props.getPolling().isFallbackOnError())
-                .build();
-        return new BaxterClient(options);
+                .timeoutSeconds(props.getTimeoutSeconds());
+
+        boolean hasApiKey = props.getApiKey() != null && !props.getApiKey().isBlank();
+        if (hasApiKey) {
+            builder.apiKey(props.getApiKey())
+                   .pollingEnabled(props.getPolling().isEnabled())
+                   .pollingInterval(props.getPolling().getInterval())
+                   .fallbackOnError(props.getPolling().isFallbackOnError());
+        } else {
+            // JWT Bearer mode — polling not supported (access tokens expire)
+            builder.bearerToken(props.getAccessToken())
+                   .projectSlug(props.getProject())
+                   .environmentSlug(props.getEnvironment());
+        }
+
+        return new BaxterClient(builder.build());
     }
 
     @Bean(destroyMethod = "close")

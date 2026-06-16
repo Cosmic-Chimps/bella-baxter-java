@@ -1,6 +1,7 @@
 package io.bellabaxter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.microsoft.kiota.authentication.AuthenticationProvider;
 import com.microsoft.kiota.http.OkHttpRequestAdapter;
 import io.bellabaxter.generated.BellaClient;
 import io.bellabaxter.generated.models.AllEnvironmentSecretsResponse;
@@ -41,17 +42,27 @@ public final class BaxterClient implements AutoCloseable {
     private final BellaClient kiota;
     private final OkHttpClient okHttp;
     private final String baseUrl;
-    private final String keyId;
-    private final byte[] signingSecret;
+    private final String keyId;          // null in JWT Bearer mode
+    private final byte[] signingSecret;  // null in JWT Bearer mode
+    private final BaxterClientOptions options;
     private volatile KeyContext keyContext;
 
     public BaxterClient(BaxterClientOptions options) {
-        HmacAuthenticationProvider auth = new HmacAuthenticationProvider(options.getApiKey());
+        this.options = options;
 
-        // Parse key parts for raw HTTP signing
-        String[] parts = options.getApiKey().split("-", 3);
-        this.keyId = parts[1];
-        this.signingSecret = HexFormat.of().parseHex(parts[2]);
+        // Select auth provider — HMAC API key or OAuth2 Bearer JWT
+        AuthenticationProvider auth;
+        if (options.isBearerMode()) {
+            auth = new BearerAuthenticationProvider(options.getBearerToken());
+            this.keyId = null;
+            this.signingSecret = null;
+        } else {
+            auth = new HmacAuthenticationProvider(options.getApiKey());
+            // Parse key parts for raw HTTP signing (used in getKeyContext())
+            String[] parts = options.getApiKey().split("-", 3);
+            this.keyId = parts[1];
+            this.signingSecret = HexFormat.of().parseHex(parts[2]);
+        }
 
         OkHttpClient.Builder httpBuilder = new OkHttpClient.Builder()
                 .connectTimeout(options.getTimeoutSeconds(), TimeUnit.SECONDS)
@@ -117,6 +128,21 @@ public final class BaxterClient implements AutoCloseable {
      */
     public synchronized KeyContext getKeyContext() {
         if (keyContext != null) return keyContext;
+
+        // JWT Bearer mode — project/env from options; no /api/v1/keys/me call needed
+        if (keyId == null) {
+            String proj = options.getProjectSlug();
+            String env  = options.getEnvironmentSlug();
+            if (proj == null || proj.isBlank() || env == null || env.isBlank()) {
+                throw new BaxterException(
+                    "projectSlug and environmentSlug are required in JWT Bearer mode. " +
+                    "Set bellabaxter.project / BELLA_BAXTER_PROJECT and " +
+                    "bellabaxter.environment / BELLA_BAXTER_ENV.");
+            }
+            keyContext = new KeyContext("", "user", proj, proj, env, env);
+            return keyContext;
+        }
+
         try {
             String path      = "/api/v1/keys/me";
             String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
