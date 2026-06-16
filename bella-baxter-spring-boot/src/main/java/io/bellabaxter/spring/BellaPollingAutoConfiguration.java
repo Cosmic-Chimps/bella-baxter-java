@@ -57,9 +57,7 @@ public class BellaPollingAutoConfiguration {
 
     /** Activates when either an API key or a JWT access token is configured. */
     static class BellaConfiguredCondition extends AnyNestedCondition {
-        BellaConfiguredCondition() {
-            super(org.springframework.boot.autoconfigure.condition.ConfigurationPhase.REGISTER_BEAN);
-        }
+        BellaConfiguredCondition() { super(ConfigurationPhase.REGISTER_BEAN); }
 
         @ConditionalOnProperty(prefix = "bellabaxter", name = "api-key")
         static class HasApiKey {}
@@ -93,6 +91,8 @@ public class BellaPollingAutoConfiguration {
             // JWT Bearer mode — polling not supported (access tokens expire)
             builder.bearerToken(props.getAccessToken())
                    .projectSlug(props.getProject())
+                   .pollingEnabled(props.getPolling().isEnabled())
+                   .pollingInterval(props.getPolling().getInterval())
                    .environmentSlug(props.getEnvironment());
         }
 
