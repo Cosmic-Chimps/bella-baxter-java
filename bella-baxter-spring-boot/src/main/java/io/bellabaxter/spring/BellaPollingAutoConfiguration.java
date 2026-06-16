@@ -10,7 +10,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
-import org.springframework.context.annotation.ConfigurationPhase;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
@@ -58,7 +57,9 @@ public class BellaPollingAutoConfiguration {
 
     /** Activates when either an API key or a JWT access token is configured. */
     static class BellaConfiguredCondition extends AnyNestedCondition {
-        BellaConfiguredCondition() { super(ConfigurationPhase.REGISTER_BEAN); }
+        BellaConfiguredCondition() {
+            super(org.springframework.boot.autoconfigure.condition.ConfigurationPhase.REGISTER_BEAN);
+        }
 
         @ConditionalOnProperty(prefix = "bellabaxter", name = "api-key")
         static class HasApiKey {}
