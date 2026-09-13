@@ -115,11 +115,18 @@
                         </execution>
                     </executions>
                 </plugin>
-                <!-- Maven Central publishing via Sonatype Central Portal -->
+                <!-- Maven Central publishing via Sonatype Central Portal.
+                     0.11.0 is a FLOOR, not a preference: the Portal's deployment-status
+                     response grew a "warnings" field, and the plugin's DeploymentApiResponse
+                     does not set ignoreUnknown, so every version up to and including 0.10.0
+                     dies on it with an UnrecognizedPropertyException. The upload itself has
+                     already succeeded by then — the artifacts land on Central and the build
+                     fails afterwards, which is what v0.1.1-preview.101 did. Do not downgrade. -->
                 <plugin>
                     <groupId>org.sonatype.central</groupId>
                     <artifactId>central-publishing-maven-plugin</artifactId>
-                    <version>0.7.0</version>
+                    <!-- requires Maven >= 3.9.2; ubuntu-latest ships 3.9.16 -->
+                    <version>0.11.0</version>
                     <extensions>true</extensions>
                     <configuration>
                         <publishingServerId>central</publishingServerId>
