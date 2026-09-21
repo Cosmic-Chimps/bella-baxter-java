@@ -60,6 +60,13 @@ public class BellaConfigSource implements ConfigSource {
 
     private static final Logger LOG = Logger.getLogger(BellaConfigSource.class.getName());
 
+    /**
+     * True while this thread is already resolving an option through MicroProfile Config. Consulting
+     * Config can construct or query config sources — including this one — so the second entry must
+     * answer from defaults rather than ask again.
+     */
+    private static final ThreadLocal<Boolean> RESOLVING = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     /** Higher ordinal = higher priority. 300 > default sources (application.properties = 250). */
     public static final int ORDINAL = 300;
 
@@ -68,11 +75,59 @@ public class BellaConfigSource implements ConfigSource {
 
     private BellaPollingProvider poller;
 
+    /** Guards the one-shot initialization below. */
+    private volatile boolean initialized;
+
     /**
-     * No-arg constructor required by the SPI. Reads configuration from environment variables
-     * or MicroProfile Config properties (see class Javadoc for property names).
+     * No-arg constructor required by the SPI.
+     *
+     * <p><b>It deliberately does nothing.</b> Quarkus instantiates every registered
+     * {@code ConfigSource} through the SPI <i>while building the Config</i>, so anything this
+     * constructor asks of {@link org.eclipse.microprofile.config.ConfigProvider} re-enters the very
+     * discovery that created it: {@code getConfig()} → SPI scan → {@code new BellaConfigSource()}
+     * → {@code getConfig()} → … until the stack is gone.
+     *
+     * <p>That is what used to happen. The build failed with
+     * {@code ServiceConfigurationError: Provider io.bellabaxter.quarkus.BellaConfigSource could not
+     * be instantiated} wrapping a {@link StackOverflowError}, so no Quarkus application carrying
+     * this dependency could be built at all.
+     *
+     * <p>Work moved to {@link #ensureInitialized()}, which runs on the first property READ — by
+     * which time Config exists and asking it a question is safe.
      */
     public BellaConfigSource() {
+        // Intentionally empty. See the Javadoc: constructing this type must have no side effects.
+    }
+
+    /**
+     * Resolves options and loads secrets once, on first use.
+     *
+     * <p>{@code initialized} is set <b>before</b> the body runs, not after. A re-entrant call — Config
+     * being consulted while we are still resolving our own options — then sees "already done" and
+     * returns an empty map instead of recursing. Setting it afterwards would reinstate the loop this
+     * class exists to avoid.
+     */
+    private void ensureInitialized() {
+        if (initialized) {
+            return;
+        }
+        synchronized (this) {
+            if (initialized) {
+                return;
+            }
+            initialized = true;
+            try {
+                initialize();
+            } catch (Throwable t) {
+                // Throwable, not Exception: this path is reached during Config bootstrap, where the
+                // failure mode is an Error rather than an Exception. A config source that cannot
+                // load must degrade to empty, never take the application down.
+                LOG.log(Level.WARNING, "bella-quarkus: initialization failed, secrets will be empty", t);
+            }
+        }
+    }
+
+    private void initialize() {
         String url    = resolveConfig("bellabaxter.url",     "BELLABAXTER_URL",    "https://api.bella-baxter.io");
         String apiKey = resolveConfig("bellabaxter.api-key", "BELLABAXTER_API_KEY", null);
 
@@ -114,18 +169,24 @@ public class BellaConfigSource implements ConfigSource {
 
     @Override
     public Map<String, String> getProperties() {
+        ensureInitialized();
         return Collections.unmodifiableMap(secretsRef.get());
     }
 
     @Override
     public Set<String> getPropertyNames() {
+        ensureInitialized();
         return Collections.unmodifiableSet(secretsRef.get().keySet());
     }
 
     @Override
     public String getValue(String propertyName) {
+        ensureInitialized();
         return secretsRef.get().get(propertyName);
     }
+
+    // getName() and getOrdinal() deliberately do NOT initialize: Config calls both while it is
+    // still assembling its source list, which is exactly the window this class must stay inert in.
 
     @Override
     public String getName() {
@@ -152,18 +213,44 @@ public class BellaConfigSource implements ConfigSource {
         });
     }
 
+    /**
+     * Resolves one option: system property, then environment variable, then MicroProfile Config,
+     * then the default.
+     *
+     * <p><b>The order is the fix.</b> It used to ask Config FIRST and fall back to the environment,
+     * with {@code catch (Exception)} meant to absorb the bootstrap case — the comment there said
+     * "we ARE the config source being bootstrapped", so the hazard was understood. But the recursion
+     * it guarded against raises {@link StackOverflowError}, which is an {@link Error} and not an
+     * {@link Exception}, so the catch never fired and the guard was decorative.
+     *
+     * <p>Now the two sources that need no bootstrap answer first, and Config is consulted only if
+     * they do not — and behind {@code RESOLVING}, so a Config implementation that reads its own
+     * sources while being built cannot come back round.
+     */
     private static String resolveConfig(String mpKey, String envKey, String defaultValue) {
-        // Try MicroProfile Config (if already bootstrapped)
-        try {
-            org.eclipse.microprofile.config.Config config =
-                    org.eclipse.microprofile.config.ConfigProvider.getConfig();
-            return config.getOptionalValue(mpKey, String.class).orElse(
-                    System.getenv(envKey) != null ? System.getenv(envKey) : defaultValue);
-        } catch (Exception ignored) {
-            // Config not bootstrapped yet (we ARE the config source being bootstrapped)
+        String sys = System.getProperty(mpKey);
+        if (sys != null && !sys.isBlank()) {
+            return sys;
         }
-        // Fall back to environment variables
+
         String env = System.getenv(envKey);
-        return env != null ? env : defaultValue;
+        if (env != null && !env.isBlank()) {
+            return env;
+        }
+
+        if (!RESOLVING.get()) {
+            RESOLVING.set(Boolean.TRUE);
+            try {
+                org.eclipse.microprofile.config.Config config =
+                        org.eclipse.microprofile.config.ConfigProvider.getConfig();
+                return config.getOptionalValue(mpKey, String.class).orElse(defaultValue);
+            } catch (Throwable ignored) {
+                // Config is not available yet, or asking re-entered. Either way the default stands.
+            } finally {
+                RESOLVING.remove();
+            }
+        }
+
+        return defaultValue;
     }
 }

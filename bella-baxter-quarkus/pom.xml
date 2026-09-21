@@ -40,6 +40,15 @@
             <version>5.11.4</version>
             <scope>test</scope>
         </dependency>
+        <!-- A real MicroProfile Config implementation, so the regression test below can do the
+             one thing that reproduced the defect: call ConfigProvider.getConfig() and let it
+             discover this module's own ConfigSource through META-INF/services. -->
+        <dependency>
+            <groupId>io.smallrye.config</groupId>
+            <artifactId>smallrye-config</artifactId>
+            <version>3.10.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

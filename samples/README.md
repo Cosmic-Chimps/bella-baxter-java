@@ -66,7 +66,7 @@ Secret key mapping: `ConnectionStrings__Postgres` → nested `ConnectionStrings.
 
 ```bash
 # Authenticate
-bella login --api-key bax-xxxxxxxxxxxxxxxxxxxx
+bella login
 
 # Set your Bella Baxter instance URL
 export BELLA_BAXTER_URL=http://localhost:5522
@@ -80,12 +80,12 @@ export BELLA_BAXTER_URL=http://localhost:5522
 |--------|---------|
 | 01 | `bella secrets get --app java-01-dotenv-file -o .env` |
 | 02 | `bella run --app java-02-process-inject -- java -jar ...` |
-| 03 | `bella exec --app java-03-spring-boot -- java -jar ...` |
-| 04 | `bella exec --app java-04-quarkus -- java -jar ...` |
+| 03 | `bella sdk run --app java-03-spring-boot -- java -jar ...` |
+| 04 | `bella sdk run --app java-04-quarkus -- java -jar ...` |
 
-> **Note on `-D` JVM flags:** `bella exec -- java -Dserver.port=9090` does **not** work — `bella`  
+> **Note on `-D` JVM flags:** `bella sdk run -- java -Dserver.port=9090` does **not** work — `bella`  
 > parses `-D` as its own flag even after `--`. Use env vars instead:  
-> `SERVER_PORT=9090 bella exec ...` (Spring Boot) or `QUARKUS_HTTP_PORT=9090 bella exec ...` (Quarkus).
+> `SERVER_PORT=9090 bella sdk run ...` (Spring Boot) or `QUARKUS_HTTP_PORT=9090 bella sdk run ...` (Quarkus).
 
 ---
 

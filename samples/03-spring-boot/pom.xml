@@ -31,14 +31,17 @@
     <dependency>
       <groupId>io.bella-baxter</groupId>
       <artifactId>bella-baxter-spring-boot</artifactId>
-      <version>1.0.0</version>
+      <version>0.1.1-preview.111</version>
     </dependency>
 
     <!-- Required for @RefreshScope support with polling -->
+    <!-- #733: this asked for spring-cloud-starter-context:4.2.0, an artifact that does not
+         exist under that name at ANY version. @RefreshScope (the only thing the sample uses
+         from Spring Cloud) lives in spring-cloud-context. -->
     <dependency>
       <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter-context</artifactId>
-      <version>4.2.0</version>
+      <artifactId>spring-cloud-context</artifactId>
+      <version>4.3.0</version>
     </dependency>
   </dependencies>
 

@@ -7,8 +7,8 @@
 # Samples tested:
 #   01-dotenv-file    — bella secrets get -o .env → java -jar
 #   02-process-inject — bella run -- "$JAVA" -jar
-#   03-spring-boot    — bella exec -- "$JAVA" -jar (Spring Boot server, curl validation)
-#   04-quarkus        — bella exec -- "$JAVA" -jar (Quarkus server, curl validation)
+#   03-spring-boot    — bella sdk run -- "$JAVA" -jar (Spring Boot server, curl validation)
+#   04-quarkus        — bella sdk run -- "$JAVA" -jar (Quarkus server, curl validation)
 
 set -uo pipefail
 
@@ -218,9 +218,9 @@ cleanup_port "$SERVER_PORT_03"
 
 SERVER_03_PID=""
 pushd "$SAMPLE_03" > /dev/null
-  # Use SERVER_PORT env var (not -Dserver.port) — bella exec stops parsing at --
+  # Use SERVER_PORT env var (not -Dserver.port) — bella sdk run stops parsing at --
   # but still passes -D as a JVM flag to the subprocess, which bella misinterprets.
-  SERVER_PORT="$SERVER_PORT_03" bella exec --app java-03-spring-boot -- \
+  SERVER_PORT="$SERVER_PORT_03" bella sdk run --app java-03-spring-boot -- \
     "$JAVA" -jar target/sample-03-spring-boot-1.0.0.jar \
     > /tmp/bella-java-03.log 2>&1 &
   SERVER_03_PID=$!
@@ -250,7 +250,7 @@ cleanup_port "$SERVER_PORT_04"
 
 SERVER_04_PID=""
 pushd "$SAMPLE_04" > /dev/null
-  QUARKUS_HTTP_PORT="$SERVER_PORT_04" bella exec --app java-04-quarkus -- \
+  QUARKUS_HTTP_PORT="$SERVER_PORT_04" bella sdk run --app java-04-quarkus -- \
     "$JAVA" -jar target/quarkus-app/quarkus-run.jar \
     > /tmp/bella-java-04.log 2>&1 &
   SERVER_04_PID=$!

@@ -10,16 +10,16 @@
 export BELLA_BAXTER_URL=http://localhost:5522   # your Bella Baxter instance
 
 # Authenticate with API key
-bella login --api-key bax-xxxxxxxxxxxxxxxxxxxx
+bella login
 
 # Production JVM mode
-mvn package && bella exec --app java-04-quarkus -- java -jar target/quarkus-app/quarkus-run.jar
+mvn package && bella sdk run --app java-04-quarkus -- java -jar target/quarkus-app/quarkus-run.jar
 
 # Override the HTTP port via environment variable (avoids bella's -D flag parsing issue):
-QUARKUS_HTTP_PORT=8098 bella exec --app java-04-quarkus -- java -jar target/quarkus-app/quarkus-run.jar
+QUARKUS_HTTP_PORT=8098 bella sdk run --app java-04-quarkus -- java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-> **Port override note:** `bella exec -- java -Dquarkus.http.port=8098` does not work because `bella`  
+> **Port override note:** `bella sdk run -- java -Dquarkus.http.port=8098` does not work because `bella`  
 > parses `-D` as its own option even after `--`. Use the `QUARKUS_HTTP_PORT` environment variable  
 > instead — Quarkus picks it up automatically.
 

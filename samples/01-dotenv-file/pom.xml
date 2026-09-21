@@ -20,9 +20,9 @@
   <dependencies>
     <!-- Bella Baxter SDK -->
     <dependency>
-      <groupId>io.bellabaxter</groupId>
+      <groupId>io.bella-baxter</groupId>
       <artifactId>bella-baxter-sdk</artifactId>
-      <version>1.0.0</version>
+      <version>0.1.1-preview.111</version>
     </dependency>
 
     <!-- dotenv-java: loads .env files into Dotenv/System.getenv() -->

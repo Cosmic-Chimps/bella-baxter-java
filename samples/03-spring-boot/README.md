@@ -10,18 +10,18 @@
 export BELLA_BAXTER_URL=http://localhost:5522   # your Bella Baxter instance
 
 # Authenticate with API key
-bella login --api-key bax-xxxxxxxxxxxxxxxxxxxx
+bella login
 
 mvn package
 
-# Run with secrets injected by bella exec
-bella exec --app java-03-spring-boot -- java -jar target/sample-03-spring-boot-1.0.0.jar
+# Run with secrets injected by bella sdk run
+bella sdk run --app java-03-spring-boot -- java -jar target/sample-03-spring-boot-1.0.0.jar
 
 # Override the HTTP port via environment variable (avoids bella's -D flag parsing issue):
-SERVER_PORT=8099 bella exec --app java-03-spring-boot -- java -jar target/sample-03-spring-boot-1.0.0.jar
+SERVER_PORT=8099 bella sdk run --app java-03-spring-boot -- java -jar target/sample-03-spring-boot-1.0.0.jar
 ```
 
-> **Port override note:** `bella exec -- java -Dserver.port=8099` does not work because `bella`  
+> **Port override note:** `bella sdk run -- java -Dserver.port=8099` does not work because `bella`  
 > parses `-D` as its own option even after `--`. Use the `SERVER_PORT` environment variable  
 > instead — Spring Boot picks it up automatically.
 

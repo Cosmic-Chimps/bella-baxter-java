@@ -6,7 +6,7 @@
 
     <groupId>io.bellabaxter.samples</groupId>
     <artifactId>sample-04-quarkus</artifactId>
-    <version>1.0.0</version>
+    <version>0.1.1-preview.111</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -38,7 +38,7 @@
         <dependency>
             <groupId>io.bella-baxter</groupId>
             <artifactId>bella-baxter-quarkus</artifactId>
-            <version>1.0.0</version>
+            <version>0.1.1-preview.111</version>
         </dependency>
     </dependencies>
 
