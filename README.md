@@ -34,12 +34,13 @@ implementation 'io.bella-baxter:bella-baxter-sdk:VERSION'
 import io.bellabaxter.BaxterClient;
 import io.bellabaxter.BaxterClientOptions;
 
-var options = new BaxterClientOptions();
-options.setBaxterURL("https://baxter.example.com");
-options.setApiKey("bax-...");
+var options = new BaxterClientOptions.Builder()
+    .baxterUrl("https://baxter.example.com")
+    .apiKey("bax-...")               // project + environment are discovered from the key
+    .build();
 
-try (var client = BaxterClient.create(options)) {
-    var secrets = client.getAllSecrets("my-project", "production");
+try (var client = new BaxterClient(options)) {
+    var secrets = client.getAllSecrets().getSecrets();
     System.out.println(secrets.get("DATABASE_URL"));
 }
 ```
@@ -50,28 +51,43 @@ Load secrets directly into system properties before starting your server:
 
 ```java
 public static void main(String[] args) {
-    var options = new BaxterClientOptions();
-    options.setBaxterURL(System.getenv("BELLA_BAXTER_URL"));
-    options.setApiKey(System.getenv("BELLA_API_KEY"));
+    var options = new BaxterClientOptions.Builder()
+        .baxterUrl(System.getenv("BELLA_BAXTER_URL"))
+        .apiKey(System.getenv("BELLA_BAXTER_API_KEY"))
+        .build();
 
-    try (var client = BaxterClient.create(options)) {
-        // Inject into System.getenv — existing values are NOT overwritten (local dev wins)
-        client.injectEnv("my-project", "production");
+    try (var client = new BaxterClient(options)) {
+        // Java cannot modify System.getenv(); expose the secrets as system properties instead.
+        // Existing properties are NOT overwritten (local dev wins).
+        client.getAllSecrets().getSecrets().forEach((k, v) -> {
+            if (System.getProperty(k) == null) System.setProperty(k, v);
+        });
     }
 
-    // From here, System.getenv("DATABASE_URL") works as expected
+    // From here, System.getProperty("DATABASE_URL") works as expected
     SpringApplication.run(App.class, args);
 }
 ```
 
 ## Options
 
+`new BaxterClientOptions.Builder()` methods:
+
 | Option | Default | Description |
 |--------|---------|-------------|
-| `baxterURL` | `https://api.bella-baxter.io` | Base URL of the Bella Baxter API |
-| `apiKey` | — | API key (starts with `bax-`). Obtain from WebApp → Project → API Keys |
-| `timeout` | `10s` | Per-request HTTP timeout |
-| `enableE2EE` | `false` | Enable end-to-end encryption for secrets responses |
+| `baxterUrl(String)` | `https://api.bella-baxter.io` | Base URL of the Bella Baxter API |
+| `apiKey(String)` | — | API key (starts with `bax-`). Obtain from WebApp → Project → API Keys. Mutually exclusive with `bearerToken` |
+| `bearerToken(String)` | — | JWT access token (what `bella sdk run` injects in SSO mode) |
+| `projectSlug(String)` / `environmentSlug(String)` | — | Required with `bearerToken`; discovered from the key via `/api/v1/keys/me` with `apiKey` |
+| `timeoutSeconds(int)` | `10` | Per-request HTTP timeout |
+| `pollingEnabled(boolean)` / `pollingInterval(Duration)` | `false` / `60s` | Background polling for `BellaPollingProvider` |
+| `fallbackOnError(boolean)` | `true` | Keep the last good secrets when a poll fails |
+| `privateKeyPem(String)` | `BELLA_BAXTER_PRIVATE_KEY` | Persistent device key (ZKE) presented as `X-E2E-Public-Key`; without one an ephemeral key is generated |
+| `onWrappedDekReceived(BiConsumer)` | — | Called with the wrapped DEK / lease when the server returns one |
+
+End-to-end encryption is always on: there is no option to enable or disable it. The client presents its key on
+every read that carries secret values and refuses a plaintext, tampered or wrong-key answer with
+`E2EEResponseException` (`apps/sdk/SDK_CONTRACT.md`).
 
 ## Samples
 

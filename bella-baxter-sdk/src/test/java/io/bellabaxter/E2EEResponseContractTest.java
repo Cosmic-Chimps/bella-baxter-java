@@ -218,7 +218,7 @@ class E2EEResponseContractTest {
     }
 
     /** The server side of the contract (EciesAlgorithm.Encrypt / contract-tests/stub/server.mjs encryptFor). */
-    private static String encryptFor(String clientSpkiB64, String plaintext, boolean tamper) throws Exception {
+    static String encryptFor(String clientSpkiB64, String plaintext, boolean tamper) throws Exception {
         KeyFactory kf = KeyFactory.getInstance("EC");
         PublicKey clientPub = kf.generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(clientSpkiB64)));
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC");

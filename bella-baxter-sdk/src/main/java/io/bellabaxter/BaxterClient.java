@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 public final class BaxterClient implements AutoCloseable {
 
     private final BellaClient kiota;
+    private final OkHttpRequestAdapter adapter;
     private final OkHttpClient okHttp;
     private final String baseUrl;
     private final String keyId;          // null in JWT Bearer mode
@@ -94,9 +95,9 @@ public final class BaxterClient implements AutoCloseable {
         this.okHttp  = httpBuilder.build();
         this.baseUrl = options.getBaxterUrl().replaceAll("/$", "");
 
-        OkHttpRequestAdapter adapter = new OkHttpRequestAdapter(auth, null, null, okHttp);
-        adapter.setBaseUrl(this.baseUrl);
-        this.kiota = new BellaClient(adapter);
+        this.adapter = new OkHttpRequestAdapter(auth, null, null, okHttp);
+        this.adapter.setBaseUrl(this.baseUrl);
+        this.kiota = new BellaClient(this.adapter);
     }
 
     // ── Key context ────────────────────────────────────────────────────────────
@@ -272,6 +273,15 @@ public final class BaxterClient implements AutoCloseable {
 
     /** The underlying Kiota client — use for full admin API access. */
     public BellaClient getClient() { return kiota; }
+
+    /**
+     * The request adapter behind {@link #getClient()} — signing, E2EE and all. Use it to send a request built
+     * with a generated builder's {@code toGetRequestInformation()} and read the RAW body, e.g.
+     * {@code getRequestAdapter().sendPrimitive(info, null, InputStream.class)}. Five of the seven
+     * value-carrying reads are declared as {@code E2EEncryptedPayload} in the OpenAPI document, so their typed
+     * {@code get()} cannot describe the decrypted answer; the raw body here is that answer (#1162).
+     */
+    public com.microsoft.kiota.RequestAdapter getRequestAdapter() { return adapter; }
 
     @Override
     public void close() {}

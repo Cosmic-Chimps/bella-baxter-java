@@ -5,17 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
  * OkHttp {@link Interceptor} that transparently handles E2EE for secrets responses.
  *
  * <ul>
- *   <li>Adds {@code X-E2E-Public-Key} header to requests targeting secrets endpoints.</li>
- *   <li>On response: if {@code encrypted=true}, decrypts the payload and replaces the
- *       response body with a normal {@link io.bellabaxter.generated.models.AllEnvironmentSecretsResponse}
- *       JSON so Kiota's deserialiser handles it normally.</li>
+ *   <li><b>#1162:</b> adds {@code X-E2E-Public-Key} to EVERY envelope-required read — the seven {@code GET}s
+ *       that carry secret values ({@link #requiresEnvelope}, apps/sdk/SDK_CONTRACT.md, "Rule: the key is
+ *       presented on every envelope-required read"), whichever call issued it — and to nothing else.</li>
+ *   <li>On response: decrypts the envelope and hands the plaintext on UNCHANGED — the same JSON the server
+ *       sends without a key (an {@code AllEnvironmentSecretsResponse}, a {@code {key: value}} export, an
+ *       array of secret items, one item, …) — so Kiota's deserialiser or a raw caller sees the real shape.</li>
  *   <li>When {@code onWrappedDekReceived} is set (ZKE mode), captures any
  *       {@code X-Bella-Wrapped-Dek} / {@code X-Bella-Lease-Expires} response headers.</li>
  *   <li><b>#1050 (b):</b> once the key was presented on an envelope-required read
@@ -27,7 +28,6 @@ import java.util.function.BiConsumer;
  */
 final class E2EEncryptionInterceptor implements Interceptor {
 
-    private static final String SECRETS_PATH_SUFFIX = "/secrets";
     private static final String E2E_HEADER          = "X-E2E-Public-Key";
 
     private final E2EEncryption              e2ee;
@@ -58,13 +58,13 @@ final class E2EEncryptionInterceptor implements Interceptor {
     public Response intercept(Chain chain) throws IOException {
         Request original = chain.request();
 
-        // Only inject E2EE header on secrets GET requests (not /secrets/version)
-        String  path         = original.url().encodedPath();
-        boolean isSecretsGet = path.endsWith(SECRETS_PATH_SUFFIX)
-                && "GET".equalsIgnoreCase(original.method());
+        // #1162 — the key is presented on exactly the envelope-required reads, so every read that carries
+        // secret values is end-to-end encrypted, and the #1050 rule binds on each of them.
+        String  path      = original.url().encodedPath();
+        boolean presented = requiresEnvelope(original.method(), path);
 
         Request request = original;
-        if (isSecretsGet) {
+        if (presented) {
             request = original.newBuilder()
                     .header(E2E_HEADER, e2ee.getPublicKeyBase64())
                     .build();
@@ -72,19 +72,15 @@ final class E2EEncryptionInterceptor implements Interceptor {
 
         Response response = chain.proceed(request);
 
-        if (!isSecretsGet || !response.isSuccessful()) {
+        if (!presented || !response.isSuccessful()) {
             return response;
         }
 
-        // #1050 (b) — the key was presented: on an envelope-required read, anything but an envelope that
+        // #1050 (b) — the key was presented on an envelope-required read: anything but an envelope that
         // decrypts is REFUSED (SDK_CONTRACT.md, "Rule: a presented key requires an envelope"). There is no
-        // plaintext fallback. Every path this interceptor presents on is envelope-required today; the test
-        // is still explicit so that widening the presentation cannot quietly widen what passes through.
-        boolean envelopeRequired = requiresEnvelope(request.method(), path);
-
+        // plaintext fallback.
         ResponseBody body = response.body();
         byte[] bodyBytes = body == null ? new byte[0] : body.bytes();
-        MediaType contentType = body == null ? null : body.contentType();
 
         JsonNode node;
         try {
@@ -97,38 +93,17 @@ final class E2EEncryptionInterceptor implements Interceptor {
                 && node.path("encrypted").isBoolean() && node.path("encrypted").booleanValue();
 
         if (!isEnvelope) {
-            if (envelopeRequired) {
-                response.close();
-                throw E2EEResponseException.plaintext(path);
-            }
-            return response.newBuilder()
-                    .body(ResponseBody.create(bodyBytes, contentType))
-                    .build();
+            response.close();
+            throw E2EEResponseException.plaintext(path);
         }
 
-        // Decrypt and reconstruct as a normal AllEnvironmentSecretsResponse JSON
+        // The plaintext is the server's own JSON for this read; it is handed on as is (#1162). Reshaping it
+        // (the old "legacy" {secrets: …} synthesis) would turn a getSecret item or a listSecrets array into
+        // a different document that merely decrypted correctly.
         byte[] responseBytes;
         try {
-            byte[]   plainBytes = e2ee.decryptRaw(bodyBytes);
-            JsonNode decrypted  = mapper.readTree(plainBytes);
-
-            if (decrypted.isObject() && decrypted.has("secrets")
-                    && decrypted.get("secrets").isObject()) {
-                // Full AllEnvironmentSecretsResponse — pass through directly.
-                responseBytes = plainBytes;
-            } else {
-                // Legacy: array [{key,value}] or flat {K:V} → synthesise a response.
-                Map<String, String> secrets = e2ee.decrypt(bodyBytes);
-                var objectNode = mapper.createObjectNode();
-                objectNode.put("environmentSlug", "");
-                objectNode.put("environmentName", "");
-                objectNode.put("version", 0);
-                objectNode.put("lastModified", "");
-                var secretsNode = mapper.createObjectNode();
-                secrets.forEach(secretsNode::put);
-                objectNode.set("secrets", secretsNode);
-                responseBytes = mapper.writeValueAsBytes(objectNode);
-            }
+            responseBytes = e2ee.decryptRaw(bodyBytes);
+            mapper.readTree(responseBytes); // must be JSON: an envelope that opens to garbage is not a value
         } catch (Exception ex) {
             response.close();
             throw E2EEResponseException.decryptionFailed(path, ex);
