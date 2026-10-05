@@ -210,14 +210,25 @@ public final class BaxterClient implements AutoCloseable {
      *
      * @param projectRef      project GUID or slug (e.g. "my-app" or "4f8a8f9a-...")
      * @param environmentSlug the environment slug (e.g. "production")
+     * @throws BaxterException caused by {@link E2EEResponseException} when the answer was not a decryptable
+     *         E2EE envelope (plaintext, tampered, or encrypted to another key) — never returned as secrets
      */
     public io.bellabaxter.model.AllEnvironmentSecretsResponse getAllSecrets(
             String projectRef, String environmentSlug) {
 
-        AllEnvironmentSecretsResponse resp = kiota.api().v1().projects()
-                .byId(projectRef)
-                .environments().byEnvSlug(environmentSlug)
-                .secrets().get();
+        AllEnvironmentSecretsResponse resp;
+        try {
+            resp = kiota.api().v1().projects()
+                    .byId(projectRef)
+                    .environments().byEnvSlug(environmentSlug)
+                    .secrets().get();
+        } catch (RuntimeException e) {
+            // #1050 (b) — Kiota wraps the interceptor's refusal in a bare RuntimeException; surface it as the
+            // SDK's own exception with the contract message, the E2EEResponseException as its cause.
+            var refused = E2EEResponseException.find(e);
+            if (refused.isPresent()) throw new BaxterException(refused.get().getMessage(), refused.get());
+            throw e;
+        }
 
         Map<String, String> secrets = new HashMap<>();
         if (resp.getSecrets() != null && resp.getSecrets().getAdditionalData() != null) {

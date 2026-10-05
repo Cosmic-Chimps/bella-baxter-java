@@ -18,6 +18,11 @@ import java.util.function.BiConsumer;
  *       JSON so Kiota's deserialiser handles it normally.</li>
  *   <li>When {@code onWrappedDekReceived} is set (ZKE mode), captures any
  *       {@code X-Bella-Wrapped-Dek} / {@code X-Bella-Lease-Expires} response headers.</li>
+ *   <li><b>#1050 (b):</b> once the key was presented on an envelope-required read
+ *       ({@link #requiresEnvelope}), a {@code 2xx} answer that is not an envelope throws
+ *       {@link E2EEResponseException} ({@code e2ee-plaintext-response}), and an envelope that does not
+ *       decrypt (tampered, malformed, or to another key) throws it with {@code e2ee-decryption-failed}.
+ *       Never a plaintext fallback.</li>
  * </ul>
  */
 final class E2EEncryptionInterceptor implements Interceptor {
@@ -71,35 +76,42 @@ final class E2EEncryptionInterceptor implements Interceptor {
             return response;
         }
 
-        // Capture wrapped DEK if the server returned one (ZKE flow)
-        if (onWrappedDekReceived != null) {
-            String wrappedDek = response.header("X-Bella-Wrapped-Dek");
-            if (wrappedDek != null) {
-                String leaseExpires = response.header("X-Bella-Lease-Expires");
-                onWrappedDekReceived.accept(wrappedDek, leaseExpires);
-            }
-        }
+        // #1050 (b) — the key was presented: on an envelope-required read, anything but an envelope that
+        // decrypts is REFUSED (SDK_CONTRACT.md, "Rule: a presented key requires an envelope"). There is no
+        // plaintext fallback. Every path this interceptor presents on is envelope-required today; the test
+        // is still explicit so that widening the presentation cannot quietly widen what passes through.
+        boolean envelopeRequired = requiresEnvelope(request.method(), path);
 
         ResponseBody body = response.body();
-        if (body == null) return response;
+        byte[] bodyBytes = body == null ? new byte[0] : body.bytes();
+        MediaType contentType = body == null ? null : body.contentType();
 
-        byte[]   bodyBytes = body.bytes();
-        JsonNode node      = mapper.readTree(bodyBytes);
+        JsonNode node;
+        try {
+            node = bodyBytes.length == 0 ? null : mapper.readTree(bodyBytes);
+        } catch (IOException notJson) {
+            node = null; // not JSON (a dotenv export) — not an envelope
+        }
 
-        if (!node.path("encrypted").asBoolean(false)) {
-            // Not encrypted — return as-is
-            MediaType contentType = body.contentType();
+        boolean isEnvelope = node != null && node.isObject()
+                && node.path("encrypted").isBoolean() && node.path("encrypted").booleanValue();
+
+        if (!isEnvelope) {
+            if (envelopeRequired) {
+                response.close();
+                throw E2EEResponseException.plaintext(path);
+            }
             return response.newBuilder()
                     .body(ResponseBody.create(bodyBytes, contentType))
                     .build();
         }
 
         // Decrypt and reconstruct as a normal AllEnvironmentSecretsResponse JSON
+        byte[] responseBytes;
         try {
             byte[]   plainBytes = e2ee.decryptRaw(bodyBytes);
             JsonNode decrypted  = mapper.readTree(plainBytes);
 
-            byte[] responseBytes;
             if (decrypted.isObject() && decrypted.has("secrets")
                     && decrypted.get("secrets").isObject()) {
                 // Full AllEnvironmentSecretsResponse — pass through directly.
@@ -117,12 +129,47 @@ final class E2EEncryptionInterceptor implements Interceptor {
                 objectNode.set("secrets", secretsNode);
                 responseBytes = mapper.writeValueAsBytes(objectNode);
             }
-
-            return response.newBuilder()
-                    .body(ResponseBody.create(responseBytes, MediaType.get("application/json")))
-                    .build();
         } catch (Exception ex) {
-            throw new IOException("bellabaxter: E2EE decryption failed: " + ex.getMessage(), ex);
+            response.close();
+            throw E2EEResponseException.decryptionFailed(path, ex);
         }
+
+        // Capture wrapped DEK if the server returned one (ZKE flow) — only for an answer that decrypted.
+        if (onWrappedDekReceived != null) {
+            String wrappedDek = response.header("X-Bella-Wrapped-Dek");
+            if (wrappedDek != null) {
+                String leaseExpires = response.header("X-Bella-Lease-Expires");
+                onWrappedDekReceived.accept(wrappedDek, leaseExpires);
+            }
+        }
+
+        return response.newBuilder()
+                .body(ResponseBody.create(responseBytes, MediaType.get("application/json")))
+                .build();
+    }
+
+    /**
+     * Whether the server encrypts this read's {@code 2xx} body whenever {@code X-E2E-Public-Key} is presented
+     * — the envelope-required reads of apps/sdk/SDK_CONTRACT.md. Every other path (writes,
+     * {@code …/secrets/version}, {@code …/hash}, {@code …/{key}/metadata}, …) is answered in plain JSON.
+     */
+    static boolean requiresEnvelope(String method, String path) {
+        if (method == null || path == null || !"GET".equalsIgnoreCase(method)) return false;
+        final String marker = "/api/v1/projects/";
+        int i = path.indexOf(marker);
+        if (i < 0) return false;
+        String[] s = path.substring(i + marker.length()).split("/", -1);
+        // s[0] = project
+        int n = s.length;
+        if (n == 2) return "secrets".equals(s[1]);                                   // listGlobalSecrets
+        if (n < 4 || !"environments".equals(s[1])) return false;
+        if (n == 4) return "secrets".equals(s[3]);                                   // getAllEnvironmentSecrets
+        if (n == 5) return "secrets".equals(s[3]) && "export".equals(s[4]);          // exportEnvironmentSecrets
+        if (!"providers".equals(s[3]) || n < 6 || !"secrets".equals(s[5])) return false;
+        if (n == 6) return true;                                                     // listSecrets
+        if (n == 7) return !s[6].isEmpty() && !"hash".equals(s[6]);                  // exportSecrets / getSecret
+        if (n == 9) return !s[6].isEmpty() && "versions".equals(s[7])                // getSecretVersion
+                && !s[8].isEmpty() && s[8].chars().allMatch(c -> c >= '0' && c <= '9');
+        return false;
     }
 }

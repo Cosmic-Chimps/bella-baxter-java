@@ -145,6 +145,8 @@ public final class E2EEncryption {
      *
      * @param responseBodyBytes raw JSON bytes of the API response
      * @return decrypted {@code Map<String, String>} of secrets
+     * @throws E2EEResponseException ({@code e2ee-plaintext-response}) if the body is not an encrypted
+     *         envelope — a plaintext body is never returned as secrets (#1050)
      * @throws Exception if decryption fails
      */
     public Map<String, String> decrypt(byte[] responseBodyBytes) throws Exception {
@@ -152,13 +154,10 @@ public final class E2EEncryption {
                 new com.fasterxml.jackson.databind.ObjectMapper();
         com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(responseBodyBytes);
 
-        if (!root.path("encrypted").asBoolean(false)) {
-            // Plain response — return the secrets map as-is
-            Map<String, String> plain = new HashMap<>();
-            root.fields().forEachRemaining(e -> {
-                if (e.getValue().isTextual()) plain.put(e.getKey(), e.getValue().asText());
-            });
-            return plain;
+        if (!root.path("encrypted").isBoolean() || !root.path("encrypted").booleanValue()) {
+            // #1050 (b) — a plain body is REFUSED, never read as secrets: this method exists to decrypt a
+            // response that was requested with X-E2E-Public-Key, and such a response must be an envelope.
+            throw E2EEResponseException.plaintext("the payload passed to E2EEncryption.decrypt");
         }
 
         byte[] plaintext = decryptCiphertext(root);
