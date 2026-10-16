@@ -125,8 +125,12 @@
                 <plugin>
                     <groupId>org.sonatype.central</groupId>
                     <artifactId>central-publishing-maven-plugin</artifactId>
-                    <!-- requires Maven >= 3.9.2; ubuntu-latest ships 3.9.16 -->
-                    <version>0.11.0</version>
+                    <!-- requires Maven >= 3.9.2. At least 0.12.0 under Maven 3.10.0, which ubuntu-24.04 runners
+                         ship since image 20261004: 3.10.0 writes maven-metadata-local.xml and
+                         _remote.repositories into the staging repository, 0.11.0 bundled them, and Central
+                         rejected every deployment with "Bundle has content that does NOT have a .pom file"
+                         (preview.129 to .134 never published). 0.12.0 removes them before bundling. -->
+                    <version>0.12.0</version>
                     <extensions>true</extensions>
                     <configuration>
                         <publishingServerId>central</publishingServerId>
