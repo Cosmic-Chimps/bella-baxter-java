@@ -277,9 +277,9 @@ public final class BaxterClient implements AutoCloseable {
     /**
      * The request adapter behind {@link #getClient()} — signing, E2EE and all. Use it to send a request built
      * with a generated builder's {@code toGetRequestInformation()} and read the RAW body, e.g.
-     * {@code getRequestAdapter().sendPrimitive(info, null, InputStream.class)}. Five of the seven
-     * value-carrying reads are declared as {@code E2EEncryptedPayload} in the OpenAPI document, so their typed
-     * {@code get()} cannot describe the decrypted answer; the raw body here is that answer (#1162).
+     * {@code getRequestAdapter().sendPrimitive(info, null, InputStream.class)}. Each of the seven
+     * value-carrying reads declares the PLAINTEXT it returns in the OpenAPI document (#1187), so the typed
+     * {@code get()} describes the decrypted answer; the raw body here is that same answer (#1162).
      */
     public com.microsoft.kiota.RequestAdapter getRequestAdapter() { return adapter; }
 
