@@ -82,7 +82,7 @@ public static void main(String[] args) {
 | `timeoutSeconds(int)` | `10` | Per-request HTTP timeout |
 | `pollingEnabled(boolean)` / `pollingInterval(Duration)` | `false` / `60s` | Background polling for `BellaPollingProvider` |
 | `fallbackOnError(boolean)` | `true` | Keep the last good secrets when a poll fails |
-| `privateKeyPem(String)` | `BELLA_BAXTER_PRIVATE_KEY` | Persistent device key (ZKE) presented as `X-E2E-Public-Key`; without one an ephemeral key is generated |
+| `privateKeyPem(String)` | `BELLA_BAXTER_PRIVATE_KEY` | Persistent device key presented as `X-E2E-Public-Key`; without one an ephemeral key is generated |
 | `onWrappedDekReceived(BiConsumer)` | — | Called with the wrapped DEK / lease when the server returns one |
 
 End-to-end encryption is always on: there is no option to enable or disable it. The client presents its key on
