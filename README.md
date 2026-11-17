@@ -100,4 +100,4 @@ every read that carries secret values and refuses a plaintext, tampered or wrong
 
 ## License
 
-Apache 2.0 — see [LICENSE](https://github.com/Cosmic-Chimps/bella-baxter-java/blob/main/LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
